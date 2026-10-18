@@ -5,6 +5,14 @@
 不用逆向 DeepSeek 的 PoW wasm，不用手抄 token：**浏览器就是传输层**。
 登录态、Cookie、TLS 指纹、PoW 全在真实页面里完成，桥只负责搬运。
 
+```
+git clone https://github.com/misa1ink/ds-bridge.git
+cd ds-bridge
+start.bat          # Windows 双击也行
+```
+
+需要 Node.js 22+。不用装任何 npm 依赖。
+
 ---
 
 ## 为什么这么搭
