@@ -1,0 +1,16 @@
+# Git attributes: LAST matching rule wins, so specific rules go after the
+# catch-all. Getting this backwards silently breaks the batch launcher.
+#
+# Default: normalise to LF in the repo so diffs stay readable.
+* text=auto eol=lf
+
+# start.bat must stay CRLF: cmd.exe mis-parses an LF-only batch file and dies
+# with a wall of "is not recognized as an internal or external command".
+# Must come AFTER the catch-all above to take effect.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets must never be line-ending translated.
+*.wasm binary
+*.png binary
+*.jpg binary

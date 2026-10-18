@@ -1,0 +1,25 @@
+# runtime secrets — never commit
+config.json
+
+# user-imported presets are personal content, keep them local
+presets/imported/
+
+# logs and scratch files
+*.log
+_run.log
+_run.err.log
+_*.mjs
+_*.bat
+_*.jpg
+_*.txt
+
+# browser profiles created by the bridge (contain live DeepSeek cookies)
+.ds-bridge-profile/
+.ds-bridge-profile-*/
+
+# editor / OS noise
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store

@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>DS Bridge</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel2: #1c2430;
+    --line: #283040;
+    --text: #d7e2ee;
+    --dim: #7d8b9c;
+    --accent: #3b82f6;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 18px;
+    padding: 0 22px; height: 54px; border-bottom: 1px solid var(--line);
+    background: #0f141b; position: sticky; top: 0; z-index: 20;
+  }
+  .brand { font-weight: 700; letter-spacing: .3px; font-size: 15px; }
+  .brand small { color: var(--dim); font-weight: 400; margin-left: 8px; font-size: 12px; }
+  nav { display: flex; gap: 4px; margin-left: 8px; }
+  nav button {
+    background: transparent; border: 0; color: var(--dim); padding: 8px 14px;
+    border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  nav button:hover { color: var(--text); background: #1a212b; }
+  nav button.on { color: #fff; background: var(--accent); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bad); display: inline-block; margin-right: 6px; }
+  .dot.ok { background: var(--ok); }
+  .headright { margin-left: auto; display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--dim); }
+
+  /* segmented site switcher */
+  .seg { display: flex; background: #0b0f14; border: 1px solid var(--line); border-radius: 7px; padding: 2px; }
+  .seg button {
+    background: transparent; border: 0; color: var(--dim); padding: 5px 12px;
+    border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 500; white-space: nowrap;
+  }
+  .seg button:hover { color: var(--text); }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .seg button .st { display: inline-block; width: 5px; height: 5px; border-radius: 50%; margin-right: 5px; vertical-align: middle; background: #4b5563; }
+  .seg button .st.live { background: var(--ok); }
+
+  main { padding: 20px 22px 40px; max-width: 1500px; margin: 0 auto; }
+  .page { display: none; }
+  .page.on { display: block; }
+
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .g3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 16px 18px;
+  }
+  .card h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1.1px;
+    color: var(--dim); margin: 0 0 12px; font-weight: 600;
+  }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 13px; }
+  .row > span:first-child { color: var(--dim); flex: 0 0 auto; }
+  .row > span:last-child { text-align: right; word-break: break-all; }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+
+  button.btn {
+    padding: 8px 16px; border-radius: 7px; border: 1px solid var(--accent);
+    background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; font-size: 13px;
+  }
+  button.btn:hover { filter: brightness(1.1); }
+  button.btn:disabled { opacity: .45; cursor: default; filter: none; }
+  button.ghost { background: transparent; color: var(--text); border-color: var(--line); }
+  button.ghost:hover { background: var(--panel2); }
+  button.danger { border-color: #7f2c2c; color: #f87171; background: transparent; }
+
+  input[type=text], input[type=password], textarea, select {
+    width: 100%; padding: 9px 12px; border-radius: 7px; background: #0b0f14;
+    color: var(--text); border: 1px solid var(--line);
+    font: 13px/1.55 ui-monospace, Consolas, monospace;
+  }
+  textarea { resize: vertical; min-height: 120px; }
+  label.field { display: block; margin-bottom: 12px; }
+  label.field > span { display: block; font-size: 12px; color: var(--dim); margin-bottom: 5px; }
+  .bar { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+
+  /* ---- live view ---- */
+  .viewwrap {
+    background: #05070a; border: 1px solid var(--line); border-radius: 10px;
+    overflow: hidden; position: relative; min-height: 300px;
+  }
+  #screen {
+    display: block; width: 100%; height: auto; cursor: default;
+    image-rendering: -webkit-optimize-contrast;
+  }
+  #screen.typing { cursor: text; }
+  .viewbar {
+    display: flex; gap: 8px; align-items: center; padding: 8px 10px;
+    background: var(--panel2); border-bottom: 1px solid var(--line); flex-wrap: wrap;
+  }
+  .viewbar .url {
+    flex: 1; min-width: 180px; font: 12px ui-monospace, monospace; color: var(--dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(5,7,10,.86); color: var(--dim); font-size: 13px; text-align: center; padding: 30px;
+    flex-direction: column; gap: 10px;
+  }
+  .overlay.hide { display: none; }
+
+  /* ---- presets ---- */
+  .plist { display: flex; flex-direction: column; gap: 8px; }
+  .pitem {
+    display: flex; align-items: center; gap: 12px; padding: 11px 14px;
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .pitem.active { border-color: var(--ok); background: #10231c; }
+  .pitem .pname { font-weight: 600; font-size: 13px; }
+  .pitem .pmeta { color: var(--dim); font-size: 11.5px; }
+  .pitem .pact { margin-left: auto; display: flex; gap: 6px; }
+  .pitem button { padding: 5px 11px; font-size: 12px; border-radius: 6px; }
+
+  .drop {
+    border: 1.5px dashed var(--line); border-radius: 10px; padding: 30px 20px;
+    text-align: center; color: var(--dim); font-size: 13px; transition: .15s;
+    cursor: pointer; background: #0b0f14;
+  }
+  .drop.hot { border-color: var(--accent); color: var(--text); background: #101a28; }
+
+  pre {
+    background: #0b0f14; border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px; overflow: auto; max-height: 320px; margin: 0;
+    font: 12px/1.55 ui-monospace, Consolas, monospace; color: #a9c2da;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  code { background: #1b2330; padding: 1px 5px; border-radius: 4px; color: #9fd0ff; font-size: 12px; }
+  .hint { color: var(--dim); font-size: 12px; }
+  .tag {
+    display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px;
+    background: #1b2330; color: var(--dim); margin-left: 6px;
+  }
+  .tag.g { background: #123324; color: #6ee7b7; }
+  .toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+    background: #1c2430; border: 1px solid var(--line); color: var(--text);
+    padding: 11px 20px; border-radius: 8px; font-size: 13px; z-index: 100;
+    opacity: 0; transition: .25s; pointer-events: none; max-width: 80vw;
+  }
+  .toast.on { opacity: 1; }
+  .toast.err { border-color: #7f2c2c; color: #fca5a5; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">DS Bridge <small>DeepSeek 网页端 → OpenAI 兼容</small></div>
+  <nav>
+    <button data-page="login" class="on">登录</button>
+    <button data-page="presets">预设</button>
+    <button data-page="test">测试</button>
+    <button data-page="status">状态</button>
+  </nav>
+  <div class="headright">
+    <div class="seg" id="site-seg" title="选择 DeepSeek 入口"></div>
+    <span><span class="dot" id="dot"></span><span id="h-conn">连接中</span></span>
+    <span id="h-model">—</span>
+  </div>
+</header>
+
+<main>
+
+<!-- ============ 登录 ============ -->
+<section class="page on" id="page-login">
+  <div class="card" style="margin-bottom:14px">
+    <div class="bar" style="margin-bottom:12px">
+      <strong style="font-size:13px">在下面直接登录 DeepSeek</strong>
+      <span class="hint">画面是真实浏览器，扫码或输密码都行，登录状态自动保存。</span>
+      <span style="margin-left:auto"></span>
+      <span id="v-status" class="hint">未连接</span>
+      <button class="btn ghost" id="btn-v-refresh">刷新画面</button>
+      <button class="btn ghost" id="btn-v-home">回到首页</button>
+    </div>
+
+    <div class="viewwrap">
+      <div class="viewbar">
+        <span class="url" id="v-url">about:blank</span>
+        <button class="btn ghost" id="btn-v-reload" style="padding:5px 11px;font-size:12px">重新加载</button>
+        <button class="btn ghost" id="btn-v-back" style="padding:5px 11px;font-size:12px">后退</button>
+      </div>
+      <canvas id="screen" width="1280" height="820"></canvas>
+      <div class="overlay" id="v-overlay">
+        <div>正在连接浏览器画面…</div>
+        <div class="hint">如果一直停在这里，检查服务日志或点「刷新画面」。</div>
+      </div>
+    </div>
+
+    <div class="bar" style="margin-top:12px">
+      <input type="text" id="v-type" placeholder="在这里输入文字，回车发送到页面（适合输手机号/邮箱）" style="flex:1;min-width:220px" />
+      <button class="btn ghost" id="btn-v-send">输入</button>
+      <button class="btn ghost" id="btn-v-enter">回车</button>
+    </div>
+    <div class="hint" style="margin-top:8px">
+      提示：先在画面上点一下输入框让它获得焦点，再用上面的输入框打字。
+    </div>
+  </div>
+
+  <div class="grid g3">
+    <div class="card">
+      <h2>登录状态</h2>
+      <div class="row"><span>DeepSeek 账号</span><span id="s-login">未检查</span></div>
+      <div class="row"><span>Token</span><span id="s-token">—</span></div>
+      <div class="row"><span>当前页面</span><span id="s-page" style="font-size:11px">—</span></div>
+    </div>
+    <div class="card">
+      <h2>快速跳转</h2>
+      <div class="bar">
+        <button class="btn ghost" data-goto="https://chat.deepseek.com/sign_in">登录页</button>
+        <button class="btn ghost" data-goto="https://chat.deepseek.com/">聊天页</button>
+      </div>
+      <div class="hint" style="margin-top:10px">登录成功后这个窗口会停在聊天页，可以关掉不用管。</div>
+    </div>
+    <div class="card">
+      <h2>用它做什么</h2>
+      <div class="hint">
+        登录后即可在「预设」页导入酒馆预设，在「测试」页验证连通性。
+        所有请求都走这个已登录会话。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 预设 ============ -->
+<section class="page" id="page-presets">
+  <div class="grid g2" style="margin-bottom:14px">
+    <div class="card">
+      <h2>导入预设</h2>
+      <div class="drop" id="drop">
+        把文件拖到这里，或点击选择<br />
+        <span class="hint">支持酒馆 Chat Completion 预设 .json、纯文本破限 .txt</span>
+      </div>
+      <input type="file" id="file" accept=".json,.txt" style="display:none" />
+      <label class="field" style="margin-top:14px">
+        <span>或者直接粘贴内容</span>
+        <textarea id="paste" placeholder="粘贴酒馆预设 JSON，或一段破限提示词…"></textarea>
+      </label>
+      <div class="bar">
+        <input type="text" id="pname" placeholder="预设名（留空自动取）" style="flex:1;min-width:160px" />
+        <button class="btn" id="btn-import">导入并启用</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>当前生效</h2>
+      <div class="row"><span>预设</span><span id="p-active">内置</span></div>
+      <div class="row"><span>来源</span><span id="p-active-src">bundled</span></div>
+      <div class="row"><span>字符数</span><span id="p-active-len">—</span></div>
+      <div class="bar" style="margin-top:12px">
+        <button class="btn ghost" id="btn-preview">预览实际注入内容</button>
+        <button class="btn ghost" id="btn-fallback">切回内置</button>
+      </div>
+      <pre id="p-preview" style="margin-top:12px;display:none"></pre>
+      <div class="hint" style="margin-top:12px">
+        这段内容会自动前置到每次 <code>/v1/table/fill</code> 请求，
+        酒馆数据库插件填表时用的就是它。
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>已导入的预设</h2>
+    <div class="plist" id="plist">
+      <div class="hint">还没有导入任何预设。</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>附加设置（保存在 config.json）</h2>
+    <label class="field">
+      <span>聊天路径附加提示词（可选，客户端 system 之后）</span>
+      <textarea id="chat-suffix" placeholder="留空即可。预设已覆盖破限时不要再加，会削弱指令跟随。"></textarea>
+    </label>
+    <label class="field">
+      <span>Assistant Prefix（可选，强制续写而非开新场）</span>
+      <textarea id="prefill" style="min-height:70px" placeholder="留空即可"></textarea>
+    </label>
+    <div class="bar">
+      <button class="btn" id="btn-save-settings">保存设置</button>
+      <span class="hint" id="settings-hint"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 测试 ============ -->
+<section class="page" id="page-test">
+  <div class="card" style="margin-bottom:14px">
+    <h2>连通性自测</h2>
+    <div class="bar" style="margin-bottom:10px">
+      <input type="text" id="q" value="用一句中文回答：1+1 等于几" style="flex:1;min-width:220px" />
+      <button class="btn" id="btn-ask">发送</button>
+      <button class="btn ghost" id="btn-reset">重置会话</button>
+    </div>
+    <pre id="answer">等待请求…</pre>
+  </div>
+
+  <div class="card">
+    <h2>批量填表（/v1/table/fill）</h2>
+    <textarea id="fill-body" style="min-height:190px">{
+  "context": "角色：沈砚，28岁，恋人关系，成年。场景：深夜卧室，刚从一场争执里和好，衣衫半解。",
+  "columns": [
+    { "key": "name", "desc": "角色名" },
+    { "key": "state", "desc": "身体状态，一句，要具体" },
+    { "key": "clothing", "desc": "此刻衣物状态，写清哪些还在、哪些已褪下" },
+    { "key": "want", "desc": "此刻的欲望，直白，不用委婉语" }
+  ],
+  "rows": [ { "name": "沈砚" } ]
+}</textarea>
+    <div class="bar" style="margin-top:10px">
+      <button class="btn" id="btn-fill">填表</button>
+      <span class="hint">一次请求回整行，替代逐字段串行</span>
+    </div>
+    <pre id="fill-out" style="margin-top:10px">等待请求…</pre>
+  </div>
+</section>
+
+<!-- ============ 状态 ============ -->
+<section class="page" id="page-status">
+  <div class="grid g3" style="margin-bottom:14px">
+    <div class="card">
+      <h2>服务</h2>
+      <div class="row"><span>Bridge</span><span id="st-bridge">—</span></div>
+      <div class="row"><span>浏览器</span><span id="st-browser">—</span></div>
+      <div class="row"><span>并发槽位</span><span id="st-conc">—</span></div>
+      <div class="row"><span>模型别名</span><span id="st-model">—</span></div>
+    </div>
+    <div class="card">
+      <h2>接入信息</h2>
+      <div class="row"><span>当前入口</span><span id="st-site">—</span></div>
+      <div class="row"><span>入口名称</span><span id="st-site-label">—</span></div>
+      <div class="row"><span>站点地址</span><span id="st-site-origin" style="font-size:11px">—</span></div>
+      <div class="row"><span>语言</span><span id="st-site-locale">—</span></div>
+      <div class="row"><span>Base URL</span><span id="st-base">—</span></div>
+      <div class="row"><span>认证</span><span id="st-auth">—</span></div>
+      <div class="row"><span>破限</span><span id="st-jb">—</span></div>
+    </div>
+    <div class="card">
+      <h2>API Key</h2>
+      <div class="row"><span>已有</span><span id="st-keys">—</span></div>
+      <div class="bar" style="margin-top:10px">
+        <input type="text" id="key-in" placeholder="粘贴 key 填进酒馆" style="flex:1;min-width:140px" />
+        <button class="btn ghost" id="btn-copy">复制</button>
+        <button class="btn ghost" id="btn-mint">新建</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>酒馆配置</h2>
+    <pre id="st-tavern">—</pre>
+  </div>
+</section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ------------------------------------------------------------------ */
+/* tiny helpers                                                        */
+/* ------------------------------------------------------------------ */
+const $ = id => document.getElementById(id);
+const set = (id, text, cls) => { const el = $(id); if (!el) return; el.textContent = text; if (cls !== undefined) el.className = cls; };
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+
+let toastTimer = null;
+function toast(msg, isErr) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast on' + (isErr ? ' err' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = 'toast'; }, 2600);
+}
+
+let activeKey = localStorage.getItem('ds-bridge-key') || '';
+function authHeaders(extra) {
+  const h = Object.assign({}, extra || {});
+  if (activeKey) h.authorization = 'Bearer ' + activeKey;
+  return h;
+}
+
+async function api(pathname, opts = {}) {
+  const res = await fetch(pathname, {
+    method: opts.method || 'GET',
+    headers: authHeaders(opts.body ? { 'content-type': 'application/json' } : {}),
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  let data = null;
+  try { data = await res.json(); } catch { data = null; }
+  if (!res.ok) throw new Error((data && (data.error?.message || data.error || data.message)) || ('HTTP ' + res.status));
+  return data;
+}
+
+/* ------------------------------------------------------------------ */
+/* site (endpoint) selection                                           */
+/* ------------------------------------------------------------------ */
+let activeSite = localStorage.getItem('ds-bridge-site') || '';
+let siteList = [];
+
+function renderSiteSeg() {
+  const seg = $('site-seg');
+  if (!seg) return;
+  seg.textContent = '';
+  for (const s of siteList) {
+    const b = el('button', s.id === activeSite ? 'on' : '');
+    const dot = el('span', 'st' + (s.workers > 0 ? ' live' : ''));
+    b.appendChild(dot);
+    b.appendChild(document.createTextNode(s.label));
+    b.title = s.description || s.id;
+    b.onclick = () => switchSite(s.id);
+    seg.appendChild(b);
+  }
+}
+
+async function switchSite(id) {
+  if (id === activeSite) return;
+  try {
+    const d = await api('/v1/sites/switch', { method: 'POST', body: { site: id } });
+    activeSite = d.active;
+    localStorage.setItem('ds-bridge-site', activeSite);
+    toast(`已切到${d.label}（${d.origin}）`);
+    // The screencast is per-site, so the old stream must be torn down.
+    if (es) { es.close(); es = null; }
+    await loadSites();
+    await refreshHealth();
+    await checkLogin();
+    connectView();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+async function loadSites() {
+  try {
+    const d = await api('/v1/sites');
+    siteList = d.sites || [];
+    // Trust the server's answer over stale localStorage.
+    if (d.active) {
+      activeSite = d.active;
+      localStorage.setItem('ds-bridge-site', d.active);
+    }
+    renderSiteSeg();
+    set('st-site', activeSite);
+    const info = siteList.find(s => s.id === activeSite);
+    if (info) {
+      set('st-site-label', info.label);
+      set('st-site-origin', info.origin);
+      set('st-site-locale', info.locale);
+    }
+  } catch { /* server not up yet */ }
+}
+
+/* ------------------------------------------------------------------ */
+/* navigation                                                          */
+/* ------------------------------------------------------------------ */
+document.querySelectorAll('nav button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+    $('page-' + btn.dataset.page).classList.add('on');
+    if (btn.dataset.page === 'presets') refreshPresets();
+    if (btn.dataset.page === 'status') refreshStatus();
+    if (btn.dataset.page === 'login') checkLogin();
+  };
+});
+
+/* ------------------------------------------------------------------ */
+/* live view                                                           */
+/* ------------------------------------------------------------------ */
+const canvas = $('screen');
+const ctx = canvas.getContext('2d');
+let viewSize = { width: 1280, height: 820 };
+let es = null;
+let lastImage = null;
+
+function drawFrame(dataUrl) {
+  const img = new Image();
+  img.onload = () => {
+    if (canvas.width !== img.width || canvas.height !== img.height) {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      viewSize = { width: img.width, height: img.height };
+    }
+    ctx.drawImage(img, 0, 0);
+    $('v-overlay').classList.add('hide');
+    lastImage = dataUrl;
+  };
+  img.src = dataUrl;
+}
+
+function connectView() {
+  if (es) { es.close(); es = null; }
+  const params = new URLSearchParams();
+  if (activeKey) params.set('key', activeKey);
+  if (activeSite) params.set('site', activeSite);
+  const q = params.toString() ? ('?' + params.toString()) : '';
+  es = new EventSource('/v1/view/stream' + q);
+  set('v-status', '连接中…');
+
+  es.addEventListener('open', () => {
+    set('v-status', '画面已连接', 'ok');
+    set('h-conn', '在线');
+    $('dot').classList.add('ok');
+  });
+
+  es.addEventListener('frame', ev => {
+    try {
+      const d = JSON.parse(ev.data);
+      // Ignore frames from a site the user just switched away from.
+      if (d.site && activeSite && d.site !== activeSite) return;
+      if (d.dataUrl) drawFrame(d.dataUrl);
+    } catch { /* ignore a partial frame */ }
+  });
+
+  es.addEventListener('nav', ev => {
+    try { set('v-url', JSON.parse(ev.data).url || '—'); } catch { /* ignore */ }
+  });
+
+  es.addEventListener('status', ev => {
+    try {
+      const d = JSON.parse(ev.data);
+      set('v-url', d.url || 'about:blank');
+      set('s-page', d.url || '—');
+    } catch { /* ignore */ }
+  });
+
+  es.addEventListener('error', ev => {
+    if (ev.data) {
+      try { toast(JSON.parse(ev.data).message, true); } catch { /* ignore */ }
+    }
+    set('v-status', '断开，重连中…', 'warn');
+    // EventSource retries on its own; reflect the gap without spamming.
+    if (es && es.readyState === EventSource.CLOSED) {
+      setTimeout(connectView, 2000);
+    }
+  });
+}
+
+/** Maps a click on the canvas to page coordinates using the frame's real size. */
+function canvasPoint(ev) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = viewSize.width / rect.width;
+  const scaleY = viewSize.height / rect.height;
+  return {
+    x: (ev.clientX - rect.left) * scaleX,
+    y: (ev.clientY - rect.top) * scaleY,
+  };
+}
+
+async function sendInput(payload) {
+  try {
+    const r = await api('/v1/view/input', { method: 'POST', body: payload });
+    if (r && r.ok === false) toast(r.error || '输入失败', true);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+canvas.addEventListener('click', ev => {
+  const p = canvasPoint(ev);
+  sendInput({ action: 'click', x: p.x, y: p.y });
+});
+
+canvas.addEventListener('mousemove', ev => {
+  // Throttled: the page only needs hover state, not every pixel.
+  if (canvas._moveLock) return;
+  canvas._moveLock = true;
+  setTimeout(() => { canvas._moveLock = false; }, 90);
+  const p = canvasPoint(ev);
+  sendInput({ action: 'move', x: p.x, y: p.y });
+});
+
+canvas.addEventListener('wheel', ev => {
+  ev.preventDefault();
+  const p = canvasPoint(ev);
+  sendInput({ action: 'scroll', x: p.x, y: p.y, deltaY: ev.deltaY });
+}, { passive: false });
+
+// Typing directly on the canvas goes through a capture input to avoid stealing
+// keys from the rest of the UI.
+canvas.addEventListener('keydown', ev => {
+  if (ev.key === 'Enter') { ev.preventDefault(); sendInput({ action: 'key', key: 'Enter' }); }
+  else if (ev.key === 'Backspace') { ev.preventDefault(); sendInput({ action: 'key', key: 'Backspace' }); }
+  else if (ev.key === 'Tab') { ev.preventDefault(); sendInput({ action: 'key', key: 'Tab' }); }
+  else if (ev.key.length === 1) { sendInput({ action: 'type', text: ev.key }); }
+});
+canvas.tabIndex = 0;
+
+$('btn-v-send').onclick = () => {
+  const v = $('v-type').value;
+  if (!v) return;
+  sendInput({ action: 'type', text: v });
+  $('v-type').value = '';
+};
+$('v-type').addEventListener('keydown', ev => {
+  if (ev.key === 'Enter') { ev.preventDefault(); $('btn-v-send').click(); }
+});
+$('btn-v-enter').onclick = () => sendInput({ action: 'key', key: 'Enter' });
+$('btn-v-reload').onclick = () => sendInput({ action: 'navigate', url: 'https://chat.deepseek.com/' });
+$('btn-v-home').onclick = () => sendInput({ action: 'navigate', url: 'https://chat.deepseek.com/' });
+$('btn-v-back').onclick = async () => {
+  try {
+    await fetch('/v1/view/input', {
+      method: 'POST', headers: authHeaders({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ action: 'navigate', url: 'https://chat.deepseek.com/' }),
+    });
+  } catch { /* ignore */ }
+};
+$('btn-v-refresh').onclick = async () => {
+  try {
+    const d = await api('/v1/view/snapshot');
+    if (d.ok && d.image) drawFrame(d.image);
+    else if (d.error) toast(d.error, true);
+  } catch (e) { toast(e.message, true); }
+};
+document.querySelectorAll('[data-goto]').forEach(b => {
+  b.onclick = () => sendInput({ action: 'navigate', url: b.dataset.goto });
+});
+
+/* ------------------------------------------------------------------ */
+/* login status                                                        */
+/* ------------------------------------------------------------------ */
+async function checkLogin() {
+  set('s-login', '检查中…');
+  try {
+    const q = activeSite ? ('?site=' + encodeURIComponent(activeSite)) : '';
+    const d = await api('/v1/login/check' + q);
+    if (d.ok) { set('s-login', '已登录', 'ok'); set('s-token', d.tokenLength + ' 字符'); }
+    else { set('s-login', '未登录', 'bad'); set('s-token', '—'); }
+  } catch (e) {
+    set('s-login', '检查失败', 'bad');
+    set('s-token', '—');
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* presets                                                             */
+/* ------------------------------------------------------------------ */
+async function refreshPresets() {
+  try {
+    const d = await api('/v1/presets');
+    const list = $('plist');
+    list.textContent = '';
+
+    if (!d.items || d.items.length === 0) {
+      list.appendChild(el('div', 'hint', '还没有导入任何预设。拖一个酒馆预设文件到上面试试。'));
+    } else {
+      for (const item of d.items) {
+        const row = el('div', 'pitem' + (item.name === d.active ? ' active' : ''));
+        const info = el('div');
+        const nm = el('div', 'pname', item.name);
+        if (item.name === d.active) {
+          const t = el('span', 'tag g', '生效中');
+          nm.appendChild(t);
+        }
+        info.appendChild(nm);
+        info.appendChild(el('div', 'pmeta',
+          `${item.source} · main ${item.sizes.main} / nsfw ${item.sizes.nsfw} / jb ${item.sizes.jailbreak}`));
+        row.appendChild(info);
+
+        const act = el('div', 'pact');
+        if (item.name !== d.active) {
+          const bUse = el('button', 'btn ghost', '启用');
+          bUse.onclick = async () => {
+            try {
+              await api('/v1/presets/activate', { method: 'POST', body: { name: item.name } });
+              toast('已启用 ' + item.name);
+              refreshPresets();
+            } catch (e) { toast(e.message, true); }
+          };
+          act.appendChild(bUse);
+        }
+        const bView = el('button', 'btn ghost', '查看');
+        bView.onclick = async () => {
+          try {
+            const p = await api('/v1/presets/get?name=' + encodeURIComponent(item.name));
+            $('p-preview').style.display = 'block';
+            $('p-preview').textContent = p.composed || '(空)';
+            $('p-preview').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } catch (e) { toast(e.message, true); }
+        };
+        act.appendChild(bView);
+
+        const bExp = el('button', 'btn ghost', '导出');
+        bExp.onclick = () => {
+          window.open('/v1/presets/export?name=' + encodeURIComponent(item.name), '_blank');
+        };
+        act.appendChild(bExp);
+
+        const bDel = el('button', 'btn danger', '删除');
+        bDel.onclick = async () => {
+          if (!confirm('删除预设 ' + item.name + '？')) return;
+          try {
+            await api('/v1/presets/delete', { method: 'POST', body: { name: item.name } });
+            toast('已删除');
+            refreshPresets();
+          } catch (e) { toast(e.message, true); }
+        };
+        act.appendChild(bDel);
+
+        row.appendChild(act);
+        list.appendChild(row);
+      }
+    }
+
+    set('p-active', d.active || '内置');
+    set('p-active-src', d.active ? 'imported' : 'bundled');
+  } catch (e) {
+    toast(e.message, true);
+  }
+  refreshPreviewMeta();
+}
+
+async function refreshPreviewMeta() {
+  try {
+    const d = await api('/v1/presets/preview');
+    set('p-active', d.from);
+    set('p-active-src', d.source);
+    set('p-active-len', d.length + ' 字符');
+  } catch { /* ignore */ }
+}
+
+async function doImport(content, filename, name) {
+  if (!content || !content.trim()) { toast('内容为空', true); return; }
+  try {
+    const d = await api('/v1/presets/import', {
+      method: 'POST',
+      body: { content, filename: filename || 'preset.json', name: name || '', activate: true },
+    });
+    toast(`已导入 ${d.name}（${d.source}）并启用`);
+    $('paste').value = '';
+    $('pname').value = '';
+    refreshPresets();
+    checkLogin();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+$('btn-import').onclick = () => {
+  const content = $('paste').value;
+  const name = $('pname').value.trim();
+  doImport(content, 'pasted.json', name);
+};
+
+const drop = $('drop');
+drop.onclick = () => $('file').click();
+drop.addEventListener('dragover', ev => { ev.preventDefault(); drop.classList.add('hot'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('hot'));
+drop.addEventListener('drop', ev => {
+  ev.preventDefault();
+  drop.classList.remove('hot');
+  const f = ev.dataTransfer.files[0];
+  if (f) readFile(f);
+});
+$('file').onchange = ev => { const f = ev.target.files[0]; if (f) readFile(f); };
+
+function readFile(f) {
+  const reader = new FileReader();
+  reader.onload = () => doImport(String(reader.result), f.name, $('pname').value.trim() || f.name.replace(/\.(json|txt)$/i, ''));
+  reader.onerror = () => toast('读文件失败', true);
+  reader.readAsText(f, 'utf-8');
+}
+
+$('btn-preview').onclick = async () => {
+  try {
+    const d = await api('/v1/presets/preview');
+    const pre = $('p-preview');
+    pre.style.display = 'block';
+    pre.textContent = d.text || '(空)';
+  } catch (e) { toast(e.message, true); }
+};
+
+$('btn-fallback').onclick = async () => {
+  try {
+    await api('/v1/presets/activate', { method: 'POST', body: { name: '' } });
+    toast('已切回内置破限');
+    refreshPresets();
+  } catch (e) { toast(e.message, true); }
+};
+
+async function loadSettings() {
+  try {
+    const d = await api('/v1/settings');
+    $('chat-suffix').value = d.chatSystemSuffix || '';
+    $('prefill').value = d.assistantPrefill || '';
+  } catch { /* ignore */ }
+}
+
+$('btn-save-settings').onclick = async () => {
+  try {
+    await api('/v1/settings', {
+      method: 'POST',
+      body: { chatSystemSuffix: $('chat-suffix').value, assistantPrefill: $('prefill').value },
+    });
+    set('settings-hint', '已保存到 config.json', 'ok');
+    setTimeout(() => set('settings-hint', ''), 2500);
+  } catch (e) { toast(e.message, true); }
+};
+
+/* ------------------------------------------------------------------ */
+/* test page                                                           */
+/* ------------------------------------------------------------------ */
+$('btn-ask').onclick = async () => {
+  const q = $('q').value.trim();
+  if (!q) return;
+  $('answer').textContent = '请求中…';
+  $('btn-ask').disabled = true;
+  const t0 = performance.now();
+  try {
+    const d = await api('/v1/chat/completions', {
+      method: 'POST',
+      body: { model: 'deepseek-web', messages: [{ role: 'user', content: q }], stream: false },
+    });
+    const ms = Math.round(performance.now() - t0);
+    const text = d?.choices?.[0]?.message?.content ?? JSON.stringify(d, null, 2);
+    $('answer').textContent = text + `\n\n— 耗时 ${ms} ms`;
+  } catch (e) {
+    $('answer').textContent = '错误: ' + e.message;
+  } finally {
+    $('btn-ask').disabled = false;
+  }
+};
+
+$('btn-fill').onclick = async () => {
+  $('fill-out').textContent = '请求中…';
+  $('btn-fill').disabled = true;
+  const t0 = performance.now();
+  try {
+    const body = JSON.parse($('fill-body').value);
+    const d = await api('/v1/table/fill', { method: 'POST', body });
+    const ms = Math.round(performance.now() - t0);
+    $('fill-out').textContent = JSON.stringify(d, null, 2) + `\n\n— 耗时 ${ms} ms`;
+  } catch (e) {
+    $('fill-out').textContent = '错误: ' + e.message;
+  } finally {
+    $('btn-fill').disabled = false;
+  }
+};
+
+$('btn-reset').onclick = async () => {
+  $('answer').textContent = '重置中…';
+  try {
+    const d = await api('/v1/session/reset', { method: 'POST', body: {} });
+    $('answer').textContent = JSON.stringify(d, null, 2);
+  } catch (e) { $('answer').textContent = '错误: ' + e.message; }
+};
+
+/* ------------------------------------------------------------------ */
+/* status page                                                         */
+/* ------------------------------------------------------------------ */
+async function refreshHealth() {
+  try {
+    const r = await fetch('/health');
+    const d = await r.json();
+    set('h-model', d.model || '—');
+    set('st-bridge', '在线', 'ok');
+    set('st-browser', d.browser === 'ok' ? '已连接' : d.browser, d.browser === 'ok' ? 'ok' : 'bad');
+    set('st-conc', String(d.concurrency));
+    set('st-model', d.model);
+    set('st-auth', d.authRequired ? '需要 Key' : '开放', d.authRequired ? 'warn' : 'bad');
+    set('st-jb', d.fillJailbreak ? `已注入（${d.preset || '内置'}）` : '未注入', d.fillJailbreak ? 'ok' : 'warn');
+    if (d.site) {
+      set('st-site', d.site);
+      set('st-site-label', d.siteLabel || d.site);
+      set('st-site-origin', d.siteOrigin || '—');
+      set('st-site-locale', d.siteLocale || '—');
+    }
+    // Mirror pool state into the header switcher without a second round trip.
+    if (Array.isArray(d.sites)) {
+      siteList = d.sites;
+      renderSiteSeg();
+    }
+    set('h-conn', '在线');
+    $('dot').classList.add('ok');
+  } catch {
+    set('h-conn', '离线');
+    $('dot').classList.remove('ok');
+    set('st-bridge', '离线', 'bad');
+  }
+}
+
+function baseUrl() {
+  const { protocol, hostname, port } = location;
+  return `${protocol}//${hostname}${port ? ':' + port : ''}/v1`;
+}
+
+async function refreshStatus() {
+  await refreshHealth();
+  const base = baseUrl();
+  set('st-base', base);
+  set('st-tavern',
+    `Base URL : ${base}\nAPI Key  : ${activeKey || '(还没取 key，见右侧)'}\nModel    : deepseek-web\n\n` +
+    `填表端点 : ${base}/table/fill\n预设       : 在「预设」页导入并启用`);
+
+  try {
+    const d = await api('/v1/keys');
+    const labels = (d.keys || []).map(k => `${k.label} …${k.suffix}`).join('  |  ');
+    set('st-keys', labels || '—');
+  } catch { /* ignore */ }
+
+  try {
+    const d = await fetch('/health').then(r => r.json());
+    set('st-jb', d.fillJailbreak ? `已注入（${d.preset || '内置'}）` : '未注入', d.fillJailbreak ? 'ok' : 'warn');
+  } catch { /* ignore */ }
+}
+
+$('btn-mint').onclick = async () => {
+  const label = prompt('给新 Key 起个标签（比如 phone、script）', 'client');
+  if (!label) return;
+  try {
+    const d = await api('/v1/keys', { method: 'POST', body: { label } });
+    if (d.ok) {
+      $('key-in').value = d.key;
+      activeKey = d.key;
+      localStorage.setItem('ds-bridge-key', d.key);
+      toast('新 Key 已生成');
+      refreshStatus();
+      connectView();
+    }
+  } catch (e) { toast(e.message, true); }
+};
+
+$('btn-copy').onclick = async () => {
+  const v = $('key-in').value.trim();
+  if (!v) { toast('先取一个 key', true); return; }
+  try { await navigator.clipboard.writeText(v); toast('已复制'); }
+  catch { $('key-in').select(); toast('请手动复制（已全选）'); }
+};
+
+$('key-in').addEventListener('input', e => {
+  activeKey = e.target.value.trim();
+  if (activeKey) localStorage.setItem('ds-bridge-key', activeKey);
+  else localStorage.removeItem('ds-bridge-key');
+});
+
+/* ------------------------------------------------------------------ */
+/* boot                                                                */
+/* ------------------------------------------------------------------ */
+set('st-base', baseUrl());
+
+/**
+ * The console needs the secret before it can open the screencast: EventSource
+ * cannot carry an Authorization header, so the stream authenticates with ?key=.
+ * bootstrap is loopback-only and hands back a key we already generated.
+ */
+async function bootstrapKey() {
+  if (activeKey) { $('key-in').value = activeKey; return; }
+  try {
+    const d = await fetch('/v1/console/bootstrap').then(r => r.json());
+    if (d.ok && d.key) {
+      activeKey = d.key;
+      localStorage.setItem('ds-bridge-key', d.key);
+      $('key-in').value = d.key;
+      set('s-keys', `${d.label} …${d.key.slice(-6)}`);
+    }
+  } catch { /* open bridge, or not localhost */ }
+}
+
+(async () => {
+  await bootstrapKey();
+  await loadSites();
+  await refreshHealth();
+  await checkLogin();
+  await loadSettings();
+  connectView();
+  setInterval(refreshHealth, 20000);
+  setInterval(checkLogin, 30000);
+})();
+</script>
+</body>
+</html>
